@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cultural Krillion</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #0b132b;
+      color: #e0f2fe;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: #1c2541;
+      border: 1px solid #3a506b;
+      padding: 36px 28px;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      width: 100%;
+      max-width: 520px;
+      text-align: center;
+    }
+    .round-indicator {
+      font-size: 0.9rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: 1.6rem;
+      color: #ffffff;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .timer {
+      font-size: 3rem;
+      font-weight: 800;
+      color: #48cae4;
+      margin: 18px 0;
+      font-variant-numeric: tabular-nums;
+    }
+    input {
+      width: 100%;
+      padding: 14px;
+      font-size: 1.05rem;
+      border-radius: 8px;
+      border: 1px solid #3a506b;
+      background: #0b132b;
+      color: #ffffff;
+      outline: none;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+    input:focus {
+      border-color: #48cae4;
+    }
+    button {
+      margin-top: 18px;
+      width: 100%;
+      padding: 12px;
+      font-size: 1.05rem;
+      font-weight: bold;
+      background: #48cae4;
+      color: #0b132b;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    .depth {
+      margin-top: 22px;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #5bc0be;
+    }
+    .last-score {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-top: 6px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card" id="game-card">
+    <div class="round-indicator" id="round-num">Round 1 of 5</div>
+    <h2 id="prompt">Loading prompt...</h2>
+    <div class="timer" id="timer">25</div>
+    <input type="text" id="answer-input" placeholder="Type your answer..." autocomplete="off" />
+    <button onclick="submitAnswer()">Submit</button>
+    <div class="depth" id="depth-display">Depth: 0m</div>
+    <div class="last-score" id="feedback"></div>
+  </div>
+
+  <script>
+    // Custom Krillion Prompts & Scoring Dictionary
+    // 10 = Common (Plankton), 50 = Rare, 100 = Deep Cut / One in a Krillion
+    const GAME_DATA = [
+      {
+        prompt: "Name a Country in South America",
+        answers: {
+          "brazil": 10, "argentina": 10, "colombia": 10, "peru": 15, "chile": 15,
+          "ecuador": 30, "venezuela": 30, "bolivia": 50, "paraguay": 50, "uruguay": 50,
+          "guyana": 100, "suriname": 100
+        }
+      },
+      {
+        prompt: "Name a Traditional Japanese Food or Dish",
+        answers: {
+          "sushi": 10, "ramen": 10, "tempura": 15, "udon": 25, "sashimi": 25,
+          "takoyaki": 50, "okonomiyaki": 50, "tonkatsu": 50, "yakitori": 50,
+          "chawanmushi": 100, "natto": 100, "monjayaki": 100, "umeboshi": 100
+        }
+      },
+      {
+        prompt: "Name a Chemical Element",
+        answers: {
+          "oxygen": 10, "gold": 10, "iron": 10, "carbon": 10, "hydrogen": 10,
+          "copper": 15, "silver": 15, "helium": 20, "nitrogen": 20,
+          "xenon": 50, "bismuth": 50, "tungsten": 50, "titanium": 40,
+          "praseodymium": 100, "oganesson": 100, "seaborgium": 100, "lutetium": 100
+        }
+      },
+      {
+        prompt: "Name a UNESCO World Heritage Site",
+        answers: {
+          "taj mahal": 10, "great wall of china": 10, "machu picchu": 10, "colosseum": 15,
+          "angkor wat": 30, "petra": 30, "chichen itza": 30, "acropolis": 30,
+          "galapagos islands": 50, "ha long bay": 50, "stonehenge": 40,
+          "lalibela": 100, "bagan": 100, "sigiriya": 100, "teotihuacan": 100
+        }
+      },
+      {
+        prompt: "Name a Video Game Console",
+        answers: {
+          "playstation": 10, "nintendo switch": 10, "xbox": 10, "ps5": 10, "ps4": 10,
+          "nintendo 64": 30, "gamecube": 30, "super nintendo": 30, "sega genesis": 40,
+          "dreamcast": 50, "atari 2600": 50, "game boy advance": 50, "saturn": 60,
+          "wonderswan": 100, "neo geo pocket": 100, "gizmondo": 100, "turbografx-16": 100
+        }
+      }
+    ];
+
+    let currentRound = 0;
+    let totalScore = 0;
+    let timeLeft = 25;
+    let timerId = null;
+
+    const promptEl = document.getElementById("prompt");
+    const roundEl = document.getElementById("round-num");
+    const timerEl = document.getElementById("timer");
+    const inputEl = document.getElementById("answer-input");
+    const depthEl = document.getElementById("depth-display");
+    const feedbackEl = document.getElementById("feedback");
+
+    function startRound() {
+      if (currentRound >= GAME_DATA.length) {
+        finishGame();
+        return;
+      }
+      roundEl.innerText = `Round ${currentRound + 1} of ${GAME_DATA.length}`;
+      promptEl.innerText = GAME_DATA[currentRound].prompt;
+      inputEl.value = "";
+      inputEl.focus();
+
+      timeLeft = 25;
+      timerEl.innerText = timeLeft;
+
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        timeLeft--;
+        timerEl.innerText = timeLeft;
+        if (timeLeft <= 0) {
+          submitAnswer();
+        }
+      }, 1000);
+    }
+
+    function submitAnswer() {
+      clearInterval(timerId);
+      const userGuess = inputEl.value.trim().toLowerCase();
+      const roundDict = GAME_DATA[currentRound].answers;
+
+      let gained = 0;
+      if (roundDict[userGuess]) {
+        gained = roundDict[userGuess];
+        feedbackEl.innerText = `+${gained * 10}m depth reached!`;
+      } else if (userGuess === "") {
+        feedbackEl.innerText = "Time's up! No answer given (+0m).";
+      } else {
+        feedbackEl.innerText = `"${userGuess}" was not found in the depth log (+0m).`;
+      }
+
+      totalScore += gained;
+      depthEl.innerText = `Depth: ${totalScore * 10}m`;
+
+      currentRound++;
+      startRound();
+    }
+
+    function finishGame() {
+      document.getElementById("game-card").innerHTML = `
+        <h2 style="font-size: 2rem; margin-bottom: 12px;">Dive Complete!</h2>
+        <p style="color: #94a3b8; margin-bottom: 20px;">You reached the final abyss.</p>
+        <div style="font-size: 2.2rem; font-weight: bold; color: #48cae4; margin-bottom: 24px;">
+          ${totalScore * 10}m
+        </div>
+        <button onclick="location.reload()">Dive Again</button>
+      `;
+    }
+
+    inputEl.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        submitAnswer();
+      }
+    });
+
+    startRound();
+  </script>
+</body>
+</html>
